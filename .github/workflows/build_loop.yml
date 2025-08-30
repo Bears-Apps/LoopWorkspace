@@ -303,7 +303,8 @@ jobs:
           curl https://github.com/tornado14/LoopWorkspace/commit/fcecf96790913e9202e7329c3d22f61af0022c25.patch | git apply -v # update iphone icons
           #curl https://github.com/tornado14/LoopWorkspace/commit/c452c2047326b78c286a980b5cf0e18c32ac9db3.patch | git apply -v 
           curl https://github.com/LoopKit/LoopWorkspace/commit/1726a45bb0a1ad8bc1a2867c0eba28e4f011a35e.patch | git apply -v # update watch icons
-              # Patch Fastlane Match to not print tables
+          export SCRIPT_BRANCH=prelim_ai_food && export PATCH_BRANCH=prelim_ai_food && /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/loopandlearn/lnl-scripts/$SCRIPT_BRANCH/CustomizationSelect.sh)" food_search
+          # Patch Fastlane Match to not print tables
       - name: Patch Match Tables
         run: |
           TABLE_PRINTER_PATH=$(ruby -e 'puts Gem::Specification.find_by_name("fastlane").gem_dir')/match/lib/match/table_printer.rb

@@ -235,7 +235,7 @@ jobs:
           # Several patches may be added per submodule.
           # Adding comments (#) may be useful to easily tell the individual patches apart.
 
-# The lines below add the customizations listed using the CustomizationSelect script
+          # The lines below add the customizations listed using the CustomizationSelect script
           # The "\" is a continuation character 
           #   the line following a "\" should not be blank
           /bin/bash -c "$(curl -fsSL \
@@ -246,7 +246,7 @@ jobs:
           
           # the final customization listed above CANNOT have a continuation character
           # more customizations can be pasted after this line
-      # Update icon to Angry Panda
+          # Update icon to Angry Panda
           curl https://github.com/tornado14/LoopWorkspace/commit/dd3d27ee5ec064b345647008878376ac7dbe8148.patch | git apply -v # delete iphone icons
           # old delete watch icon curl https://github.com/tornado14/LoopWorkspace/commit/87e60f83b46ee3051c0f29af434b85f34528296c.patch | git apply -v 
           curl https://github.com/LoopKit/LoopWorkspace/commit/ba6af74f1b797d14582adf9af062e75f59bcf18e.patch | git apply -v # delete watch icons

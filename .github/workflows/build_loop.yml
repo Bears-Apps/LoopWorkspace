@@ -216,16 +216,16 @@ jobs:
           profiles \
           basal_lock \
           xdrip_cgm
-#          future_carbs_4h \
-#          low_carb_limit \
-#          high_carb_limit \
-#          override_sens \
-#          lnl_icon \
-#          2hlollipop \
-#          meal_days \
-#          meal_week \
-#          negative_insulin \
-#          remote_window \
+          #          future_carbs_4h \
+          #          low_carb_limit \
+          #          high_carb_limit \
+          #          override_sens \
+          #          lnl_icon \
+          #          2hlollipop \
+          #          meal_days \
+          #          meal_week \
+          #          negative_insulin \
+          #          remote_window \
 
           # the final customization listed above CANNOT have a continuation character
           # more customizations can be pasted after this line

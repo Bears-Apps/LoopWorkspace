@@ -101,8 +101,9 @@ jobs:
             -resultBundlePath "$RUNNER_TEMP/LoopSimulator.xcresult" \
             ARCHS="$SIM_ARCH" \
             ONLY_ACTIVE_ARCH=NO \
-            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_ALLOWED=YES \
             CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="-" \
             DEVELOPMENT_TEAM=SIMULATOR \
             2>&1 | tee artifacts/logs/xcodebuild.log
 

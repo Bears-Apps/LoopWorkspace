@@ -1,0 +1,151 @@
+name: Build Loop Simulator
+run-name: Loop Simulator (${{ inputs.architecture }}, ${{ inputs.source_ref }})
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_ref:
+        description: "LoopWorkspace branch, tag, or commit to build"
+        required: true
+        default: "e5c6f0fea997531af9d5225bc38c67065cf192e4"
+        type: string
+      architecture:
+        description: "Your Mac architecture: arm64 for Apple Silicon; x86_64 for Intel"
+        required: true
+        default: arm64
+        type: choice
+        options:
+          - arm64
+          - x86_64
+
+permissions:
+  contents: read
+
+jobs:
+  simulator:
+    runs-on: xcode-27
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: bash
+    env:
+      SIM_ARCH: ${{ inputs.architecture }}
+      PATCH_REVISION: 9c747f91882b3af56965b383fa72f8abc3aaa5c8
+      SCRIPT_REVISION: 3369e4e2d42d35927787afa844c604a96a74530f
+
+    steps:
+      - name: Checkout selected source and submodules
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.source_ref }}
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Select Xcode
+        run: |
+          set -euo pipefail
+          sudo xcode-select --switch /Applications/Xcode_27.1.app/Contents/Developer
+          mkdir -p artifacts/logs
+          xcodebuild -version | tee artifacts/logs/xcode-version.txt
+          xcodebuild -showsdks | tee artifacts/logs/sdks.txt
+          git rev-parse HEAD | tee artifacts/logs/source-revision.txt
+          git submodule status --recursive | tee artifacts/logs/submodules.txt
+          {
+            echo "Patch revision: $PATCH_REVISION"
+            echo "Script revision: $SCRIPT_REVISION"
+            echo "Simulator architecture: $SIM_ARCH"
+          } | tee artifacts/logs/build-inputs.txt
+
+      - name: Download pinned customizations
+        run: |
+          set -euo pipefail
+          git clone https://github.com/loopandlearn/customization.git "$RUNNER_TEMP/loop-customizations"
+          git -C "$RUNNER_TEMP/loop-customizations" checkout --detach "$PATCH_REVISION"
+          curl -fsSL "https://raw.githubusercontent.com/loopandlearn/lnl-scripts/$SCRIPT_REVISION/CustomizationSelect.sh" \
+            -o "$RUNNER_TEMP/CustomizationSelect.sh"
+
+      - name: Apply customizations and panda icons
+        run: |
+          set -euo pipefail
+          export LOCAL_PATCH_FOLDER="$RUNNER_TEMP/loop-customizations"
+          export CUSTOMIZATION_DEBUG=2
+          if ! /bin/bash "$RUNNER_TEMP/CustomizationSelect.sh" now_line basal_lock xdrip_cgm \
+              2>&1 | tee artifacts/logs/customizations.log; then
+            # The selector suppresses git's compatibility errors; print them here.
+            for name in now_line basal_lock xdrip_cgm; do
+              for patch_file in "$LOCAL_PATCH_FOLDER/$name/"*.patch; do
+                [ -f "$patch_file" ] || continue
+                echo "::group::Compatibility check: $patch_file"
+                git apply --check --verbose "$patch_file" 2>&1 || true
+                echo "::endgroup::"
+              done
+            done 2>&1 | tee artifacts/logs/patch-diagnostics.log
+            exit 1
+          fi
+
+          # Match the panda icon customizations in build_loop.yml.
+          curl -fsSL https://github.com/tornado14/LoopWorkspace/commit/dd3d27ee5ec064b345647008878376ac7dbe8148.patch | git apply -v
+          curl -fsSL https://github.com/LoopKit/LoopWorkspace/commit/ba6af74f1b797d14582adf9af062e75f59bcf18e.patch | git apply -v
+          curl -fsSL https://github.com/tornado14/LoopWorkspace/commit/fcecf96790913e9202e7329c3d22f61af0022c25.patch | git apply -v
+          curl -fsSL https://github.com/LoopKit/LoopWorkspace/commit/1726a45bb0a1ad8bc1a2867c0eba28e4f011a35e.patch | git apply -v
+
+      - name: Build for iOS Simulator
+        run: |
+          set -euo pipefail
+          xcodebuild build \
+            -workspace LoopWorkspace.xcworkspace \
+            -scheme LoopWorkspace \
+            -configuration Debug \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath "$RUNNER_TEMP/LoopSimulatorBuild" \
+            -resultBundlePath "$RUNNER_TEMP/LoopSimulator.xcresult" \
+            ARCHS="$SIM_ARCH" \
+            ONLY_ACTIVE_ARCH=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            DEVELOPMENT_TEAM=SIMULATOR \
+            2>&1 | tee artifacts/logs/xcodebuild.log
+
+      - name: Package simulator app
+        run: |
+          set -euo pipefail
+          app_path="$RUNNER_TEMP/LoopSimulatorBuild/Build/Products/Debug-iphonesimulator/Loop.app"
+          test -d "$app_path"
+          # ditto preserves the app bundle's symlinks and executable permissions.
+          ditto -c -k --sequesterRsrc --keepParent "$app_path" "artifacts/Loop-Simulator-$SIM_ARCH.zip"
+          cat > artifacts/INSTALL.txt <<'EOF'
+          1. Extract Loop-Simulator-<architecture>.zip to get Loop.app.
+          2. Open Xcode's Simulator and boot an iPhone simulator.
+          3. Drag Loop.app onto the running simulator, or use:
+             xcrun simctl install booted "/path/to/Loop.app"
+          4. Open Loop from the simulator's Home Screen.
+          This app requires an iOS Simulator runtime compatible with its minimum OS.
+          Use the arm64 build on Apple Silicon and x86_64 on Intel.
+          EOF
+          {
+            echo "### Simulator build ready"
+            echo "Download the Loop-Simulator-$SIM_ARCH artifact below."
+            echo "Extract the artifact, then extract its app ZIP and drag Loop.app onto a booted iPhone simulator."
+            echo "Source revision: $(git rev-parse HEAD)"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload simulator app
+        uses: actions/upload-artifact@v6
+        with:
+          name: Loop-Simulator-${{ inputs.architecture }}
+          path: |
+            artifacts/Loop-Simulator-*.zip
+            artifacts/INSTALL.txt
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload diagnostics
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: Loop-Simulator-Logs-${{ inputs.architecture }}
+          path: |
+            artifacts/logs/
+            ${{ runner.temp }}/LoopSimulator.xcresult
+          if-no-files-found: warn
+          retention-days: 14
